@@ -1,0 +1,2019 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>横浜クリニック経営ダッシュボード</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+        
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        
+        header {
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .header-content {
+            padding: 1rem 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .month-selector {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        select {
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: white;
+            cursor: pointer;
+        }
+        
+        .tabs {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .tab-list {
+            display: flex;
+            overflow-x: auto;
+            gap: 2rem;
+            padding: 0;
+        }
+        
+        .tab-button {
+            padding: 1rem 0.25rem;
+            border: none;
+            background: none;
+            border-bottom: 2px solid transparent;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #6b7280;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        
+        .tab-button:hover {
+            color: #374151;
+            border-bottom-color: #d1d5db;
+        }
+        
+        .tab-button.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        
+        .main-content {
+            padding: 2rem 0;
+        }
+        
+        .metric-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .metric-card {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: box-shadow 0.2s;
+        }
+        
+        .metric-card:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .metric-title {
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-change {
+            display: flex;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+        
+        .metric-change.positive {
+            color: #10b981;
+        }
+        
+        .metric-change.negative {
+            color: #ef4444;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .chart-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        /* Chart canvas height constraints */
+        .chart-container canvas {
+            max-height: 300px;
+            height: 300px;
+        }
+        
+        .chart-grid .chart-container canvas {
+            max-height: 250px;
+            height: 250px;
+        }
+        
+        /* Special height for pie/doughnut charts */
+        .chart-container.pie-chart canvas {
+            max-height: 200px;
+            height: 200px;
+        }
+        
+        .data-table {
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #f9fafb;
+            padding: 0.75rem 1.5rem;
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        td {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        tr:hover {
+            background: #f9fafb;
+        }
+        
+        .text-right {
+            text-align: right;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .spinner {
+            width: 3rem;
+            height: 3rem;
+            border: 3px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .alert-text {
+            color: #92400e;
+            font-size: 0.875rem;
+        }
+        
+        .data-type-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .data-type-button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .data-type-button.active {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .data-type-button:not(.active) {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        .data-type-button:not(.active):hover {
+            background: #d1d5db;
+        }
+        
+        .revenue-card {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+        }
+        
+        .section-divider {
+            margin: 2rem 0;
+        }
+        
+        .icon {
+            width: 1.25rem;
+            height: 1.25rem;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .trend-icon {
+            width: 1rem;
+            height: 1rem;
+            margin-right: 0.25rem;
+        }
+        
+        .file-input {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .file-input label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        .file-input input {
+            display: block;
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+        }
+        
+        .csp-highlight {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .csp-highlight h4 {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #1e40af;
+            margin-bottom: 0.25rem;
+        }
+        
+        .csp-highlight .value {
+            font-size: 1.125rem;
+            font-weight: bold;
+            color: #1e40af;
+        }
+        
+        .csp-highlight .detail {
+            font-size: 0.75rem;
+            color: #2563eb;
+            margin-top: 0.25rem;
+        }
+        
+        /* Responsive chart adjustments */
+        @media (max-width: 768px) {
+            .chart-wrapper {
+                height: 250px;
+            }
+            
+            .chart-grid .chart-wrapper {
+                height: 200px;
+            }
+            
+            .pie-chart-wrapper {
+                height: 150px;
+            }
+            
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-grid .chart-container canvas {
+                max-height: 200px;
+                height: 200px;
+            }
+            
+            .chart-container.pie-chart canvas {
+                max-height: 180px;
+                height: 180px;
+            }
+        }
+        
+        /* Modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 2rem;
+            max-width: 90%;
+            width: 800px;
+            max-height: 90vh;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            position: relative;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        
+        .modal-close {
+            width: 2rem;
+            height: 2rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.375rem;
+            transition: background-color 0.2s;
+        }
+        
+        .modal-close:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .modal-body {
+            position: relative;
+            height: 400px;
+        }
+        
+        .modal-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f9fafb;
+            border-radius: 0.375rem;
+        }
+        
+        .modal-stat {
+            text-align: center;
+        }
+        
+        .modal-stat-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .modal-stat-value {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1f2937;
+            margin-top: 0.25rem;
+        }
+        
+        /* Clickable table rows */
+        .clickable-row {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .clickable-row:hover {
+            background-color: #e5e7eb !important;
+        }
+        
+        @media (max-width: 768px) {
+            .modal-content {
+                padding: 1rem;
+                width: 95%;
+            }
+            
+            .modal-body {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header>
+            <div class="container">
+                <div class="header-content">
+                    <h1>横浜クリニック経営ダッシュボード</h1>
+                    <div class="month-selector">
+                        <select id="monthSelector">
+                            <!-- Options will be populated by JS -->
+                        </select>
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="container">
+                <div class="tab-list" id="tabList">
+                    <!-- Tabs will be populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="container">
+            <div class="main-content">
+                <!-- File Input -->
+                <div class="file-input">
+                    <label for="csvFile">CSVファイルを選択してください:</label>
+                    <input type="file" id="csvFile" accept=".csv">
+                </div>
+                
+                <div id="content">
+                    <!-- Content will be dynamically loaded -->
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for item detail graphs -->
+    <div id="detailModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">項目詳細</h2>
+                <button class="modal-close" onclick="closeModal()">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-stats" id="modalStats"></div>
+            <div class="modal-body">
+                <canvas id="modalChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let csvData = null;
+        let selectedMonth = 11; // Default to latest month
+        let selectedTab = 'summary';
+        let dataType = 'both';
+        const maxMonth = 11;
+
+        // Tab definitions
+        const tabs = [
+            { id: 'summary', label: '全体サマリー' },
+            { id: 'revenue', label: '収益分析' },
+            { id: 'internal', label: '内科' },
+            { id: 'fever', label: '発熱外来' },
+            { id: 'dermatology', label: '皮膚科' },
+            { id: 'endoscopy', label: '内視鏡' },
+            { id: 'online', label: 'オンライン' },
+            { id: 'visit', label: '訪問診療' }
+        ];
+
+        // Department items mapping
+        const departmentItems = {
+            internal: [
+                '内科初診（人）', '内科再診（人）', '内科合計（人）', '内科新患の割合（％）', 
+                '内科患者数伸び利率（％）', '内科リピート率（％）', '内科（件/日）',
+                '内科再診', '内科初診', '内科合計', '内科'
+            ],
+            fever: [
+                '発熱初診（人）', '発熱再診（人）', '発熱合計（人）', '発熱新患の割合（％）', 
+                '発熱患者数伸び利率（％）', '発熱リピート率（％）', '発熱（件/日）',
+                '発熱再診', '発熱初診', '発熱合計', '発熱'
+            ],
+            dermatology: [
+                '皮膚科初診（人）', '皮膚科再診（人）', '皮膚科合計（人）', '皮膚科新患の割合（％）', 
+                '皮膚科患者数伸び利率（％）', '皮膚科リピート率', '皮膚科（件/日）',
+                '皮膚科再診', '皮膚科初診', '皮膚科合計', '皮膚科'
+            ],
+            endoscopy: [
+                'GF（人）', 'CF（人）', 'カメラ合計（人）', 'GF（件/日）', 'CF（件/日）', 
+                'カメラ合計（件/日）', 'CSP（人）', 'CSP割合（％）',
+                'AM内視鏡', 'PM内視鏡', '内視鏡合計', '内視鏡'
+            ],
+            online: [
+                'オンライン（人）', 'オンライン（件/日）',
+                'オンライン再診', 'オンライン初診', 'オンライン合計', 'オンライン'
+            ],
+            visit: [
+                '訪問（人）', '往診'
+            ]
+        };
+
+        // Modal variables
+        let modalChart = null;
+
+        // Modal functions
+        function showItemDetail(itemName) {
+            const modal = document.getElementById('detailModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalStats = document.getElementById('modalStats');
+            
+            // Set title
+            modalTitle.textContent = itemName;
+            
+            // Calculate statistics
+            const currentValue = getValue(itemName, selectedMonth);
+            const previousValue = getValue(itemName, selectedMonth - 1);
+            const yearAgoValue = getValue(itemName, 0);
+            
+            // Get all values for the year
+            const yearValues = [];
+            for (let i = 0; i < 12; i++) {
+                if (isValidMonth(i)) {
+                    const val = getValue(itemName, i);
+                    yearValues.push(val !== null ? val : 0);
+                }
+            }
+            
+            // Calculate average, max, min
+            const validValues = yearValues.filter(v => v !== 0);
+            const average = validValues.length > 0 ? validValues.reduce((a, b) => a + b, 0) / validValues.length : 0;
+            const max = Math.max(...validValues);
+            const min = Math.min(...validValues);
+            
+            // Display statistics
+            modalStats.innerHTML = `
+                <div class="modal-stat">
+                    <div class="modal-stat-label">現在値</div>
+                    <div class="modal-stat-value">${formatValue(currentValue, itemName)}</div>
+                </div>
+                <div class="modal-stat">
+                    <div class="modal-stat-label">前月比</div>
+                    <div class="modal-stat-value">${getChangeRate(currentValue, previousValue)}%</div>
+                </div>
+                <div class="modal-stat">
+                    <div class="modal-stat-label">年間平均</div>
+                    <div class="modal-stat-value">${formatValue(average, itemName)}</div>
+                </div>
+                <div class="modal-stat">
+                    <div class="modal-stat-label">最大値</div>
+                    <div class="modal-stat-value">${formatValue(max, itemName)}</div>
+                </div>
+                <div class="modal-stat">
+                    <div class="modal-stat-label">最小値</div>
+                    <div class="modal-stat-value">${formatValue(min, itemName)}</div>
+                </div>
+            `;
+            
+            // Show modal
+            modal.classList.add('active');
+            
+            // Render chart
+            setTimeout(() => {
+                renderModalChart(itemName);
+            }, 100);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('detailModal');
+            modal.classList.remove('active');
+            
+            // Destroy existing chart
+            if (modalChart) {
+                modalChart.destroy();
+                modalChart = null;
+            }
+        }
+
+        function renderModalChart(itemName) {
+            const ctx = document.getElementById('modalChart');
+            if (!ctx) return;
+
+            // Destroy existing chart
+            if (modalChart) {
+                modalChart.destroy();
+            }
+
+            // Prepare data
+            const data = [];
+            for (let i = 0; i < 12; i++) {
+                if (isValidMonth(i)) {
+                    data.push({
+                        month: getMonthLabel(i),
+                        value: getValue(itemName, i) || 0
+                    });
+                }
+            }
+
+            // Determine chart type based on item type
+            const isPercentage = itemName.includes('％') || itemName.includes('率');
+            const isGrowthRate = itemName.includes('伸び') || itemName.includes('growth');
+            const isRevenue = getDataType(itemName) === 'revenue';
+            
+            modalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.month),
+                    datasets: [{
+                        label: itemName,
+                        data: data.map(d => d.value),
+                        borderColor: isRevenue ? '#10B981' : '#3B82F6',
+                        backgroundColor: isRevenue ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.1,
+                        fill: true,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return formatValue(context.parsed.y, itemName);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: (isPercentage && !isGrowthRate) ? 100 : undefined,
+                            ticks: {
+                                callback: function(value) {
+                                    if (isRevenue) {
+                                        return `¥${(value / 1000000).toFixed(1)}M`;
+                                    } else if (isPercentage) {
+                                        return value + '%';
+                                    }
+                                    return value;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Add click handler to modal overlay
+        document.addEventListener('DOMContentLoaded', function() {
+            const modalOverlay = document.getElementById('detailModal');
+            modalOverlay.addEventListener('click', function(e) {
+                if (e.target === modalOverlay) {
+                    closeModal();
+                }
+            });
+        });
+
+        // Helper functions
+        function getValue(itemName, monthIndex) {
+            if (!csvData) return null;
+            // Ensure monthIndex is within valid range (0-11)
+            if (monthIndex < 0 || monthIndex > 11) return null;
+            
+            for (let i = 2; i < csvData.length; i++) {
+                if (csvData[i][1] === itemName) {
+                    const rawValue = csvData[i][monthIndex + 2];
+                    
+                    if (typeof rawValue === 'string') {
+                        const cleanedValue = rawValue.replace(/[¥￥,\s]/g, '');
+                        const numericValue = cleanedValue.replace('%', '');
+                        const parsed = parseFloat(numericValue);
+                        return isNaN(parsed) ? rawValue : parsed;
+                    }
+                    
+                    return rawValue;
+                }
+            }
+            return null;
+        }
+
+        // Check if a month has valid revenue data (non-zero total revenue)
+        function isValidMonth(monthIndex) {
+            const totalRevenue = getValue('合計', monthIndex);
+            return totalRevenue !== null && totalRevenue !== 0;
+        }
+
+        function getDataType(itemName) {
+            if (!csvData) return 'volume';
+            for (let i = 2; i < csvData.length; i++) {
+                if (csvData[i][1] === itemName) {
+                    return i >= 52 ? 'revenue' : 'volume';
+                }
+            }
+            return 'volume';
+        }
+
+        function getUnit(itemName) {
+            if (getDataType(itemName) === 'revenue') return '円';
+            if (itemName.includes('％')) return '%';
+            if (itemName.includes('件/日')) return '件/日';
+            if (itemName.includes('（日）')) return '日';
+            if (itemName.includes('（件）')) return '件';
+            return '人';
+        }
+
+        function formatValue(value, itemName) {
+            if (value === null || value === undefined) return '-';
+            
+            const numValue = typeof value === 'number' ? value : 0;
+            
+            const unit = getUnit(itemName);
+            if (unit === '円') {
+                return `¥${Math.round(numValue).toLocaleString()}`;
+            } else if (unit === '%') {
+                return `${numValue.toFixed(1)}%`;
+            } else if (unit === '件/日') {
+                return `${numValue.toFixed(1)}`;
+            } else {
+                return numValue.toLocaleString();
+            }
+        }
+
+        function getChangeRate(current, previous) {
+            const parseValue = (val) => {
+                if (typeof val === 'string') {
+                    return parseFloat(val.replace(/[¥￥,\s%]/g, ''));
+                }
+                return parseFloat(val);
+            };
+            
+            const currentNum = parseValue(current);
+            const previousNum = parseValue(previous);
+            
+            if (isNaN(currentNum) || isNaN(previousNum) || previousNum === 0) return 0;
+            return ((currentNum - previousNum) / previousNum * 100).toFixed(1);
+        }
+
+        function getMonthLabel(index) {
+            if (!csvData || !csvData[1]) return '';
+            return csvData[1][index + 2];
+        }
+
+        // Create metric card HTML
+        function createMetricCard(title, value, previousValue, itemName, color = 'blue') {
+            const changeRate = getChangeRate(value, previousValue);
+            const isPositive = parseFloat(changeRate) > 0;
+            const unit = getUnit(itemName);
+            
+            const trendIcon = isPositive ? 
+                '<svg class="trend-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>' :
+                '<svg class="trend-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>';
+            
+            return `
+                <div class="metric-card ${color === 'green' ? 'revenue-card' : ''}">
+                    <div class="metric-header">
+                        <h3 class="metric-title">${title}</h3>
+                    </div>
+                    <div class="metric-value">${formatValue(value, itemName)}</div>
+                    ${unit && unit !== '円' && unit !== '%' ? `<p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">${unit}</p>` : ''}
+                    ${parseFloat(changeRate) !== 0 ? `
+                        <div class="metric-change ${isPositive ? 'positive' : 'negative'}">
+                            ${trendIcon}
+                            <span>${changeRate}%</span>
+                            <span style="color: #6b7280; margin-left: 0.25rem;">前月比</span>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Render functions for different sections
+        function renderSummarySection() {
+            const currentMonth = selectedMonth;
+            const previousMonth = currentMonth - 1;
+            
+            const totalPatients = getValue('外来合計（人）', currentMonth);
+            const previousPatients = getValue('外来合計（人）', previousMonth);
+            const totalRevenue = getValue('合計', currentMonth);
+            const previousRevenue = getValue('合計', previousMonth);
+            const newPatientRate = getValue('外来新患の割合（％）', currentMonth);
+            const repeatRate = getValue('外来合計リピート率（％）', currentMonth);
+
+            let html = '<div class="metric-cards">';
+            html += createMetricCard('総患者数', totalPatients, previousPatients, '外来合計（人）', 'blue');
+            html += createMetricCard('総売上', totalRevenue, previousRevenue, '合計', 'green');
+            html += createMetricCard('新患率', newPatientRate, getValue('外来新患の割合（％）', previousMonth), '外来新患の割合（％）', 'purple');
+            html += createMetricCard('リピート率', repeatRate, getValue('外来合計リピート率（％）', previousMonth), '外来合計リピート率（％）', 'orange');
+            html += '</div>';
+
+            // Charts
+            html += '<div class="chart-grid">';
+            
+            // Patient trend chart
+            html += '<div class="chart-container">';
+            html += '<h3 class="chart-title">患者数推移（12ヶ月）</h3>';
+            html += '<div class="chart-wrapper"><canvas id="patientTrendChart"></canvas></div>';
+            html += '</div>';
+
+            // Department composition chart
+            html += '<div class="chart-container">';
+            html += '<h3 class="chart-title">診療科別患者構成比</h3>';
+            html += '<div class="chart-wrapper"><canvas id="departmentCompositionChart"></canvas></div>';
+            html += '</div>';
+            
+            html += '</div>';
+
+            // Revenue charts
+            html += '<div class="chart-grid">';
+            
+            // Revenue summary chart  
+            html += '<div class="chart-container">';
+            html += '<h3 class="chart-title">収益内訳</h3>';
+            html += '<div class="chart-wrapper"><canvas id="revenueSummaryChart"></canvas></div>';
+            html += '</div>';
+            
+            // Department revenue chart
+            html += '<div class="chart-container">';
+            html += '<h3 class="chart-title">診療科別収益構成</h3>';
+            html += '<div class="chart-wrapper"><canvas id="departmentRevenueSummaryChart"></canvas></div>';
+            html += '</div>';
+            
+            html += '</div>';
+
+            // Alert
+            if (newPatientRate < 30) {
+                html += `
+                    <div class="alert">
+                        <svg class="icon" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                        <p class="alert-text">新患率が30%を下回っています。集患施策の見直しを検討してください。</p>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        function renderRevenueSection() {
+            const currentMonth = selectedMonth;
+            const previousMonth = currentMonth - 1;
+
+            const totalRevenue = getValue('合計', currentMonth);
+            const previousTotalRevenue = getValue('合計', previousMonth);
+            const dailyAverage = getValue('1日の平均売上', currentMonth);
+            const previousDailyAverage = getValue('1日の平均売上', previousMonth);
+
+            let html = '<div class="metric-cards">';
+            html += createMetricCard('総売上', totalRevenue, previousTotalRevenue, '合計', 'green');
+            html += createMetricCard('1日平均売上', dailyAverage, previousDailyAverage, '1日の平均売上', 'blue');
+            html += '</div>';
+
+            // Revenue breakdown charts
+            html += '<div class="chart-grid">';
+            
+            html += '<div class="chart-container">';
+            html += '<h3 class="chart-title">収入内訳</h3>';
+            html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">';
+            html += '<div><h4 style="font-size: 0.875rem; color: #6b7280; margin-bottom: 0.5rem;">収入種別</h4><div class="pie-chart-wrapper"><canvas id="incomeBreakdownChart"></canvas></div></div>';
+            html += '<div><h4 style="font-size: 0.875rem; color: #6b7280; margin-bottom: 0.5rem;">診療科別</h4><div class="pie-chart-wrapper"><canvas id="departmentRevenueChart"></canvas></div></div>';
+            html += '</div>';
+            html += '</div>';
+
+            html += '<div class="chart-container">';
+            html += '<h3 class="chart-title">売上推移（12ヶ月）</h3>';
+            html += '<div class="chart-wrapper"><canvas id="revenueTrendChart"></canvas></div>';
+            html += '</div>';
+            
+            html += '</div>';
+
+            // Department revenue table
+            html += '<div class="data-table">';
+            html += '<div style="padding: 1.5rem;"><h3 class="chart-title">診療科別収益内訳</h3></div>';
+            html += '<div class="table-wrapper">';
+            html += '<table>';
+            html += '<thead><tr>';
+            html += '<th>診療科</th>';
+            html += '<th class="text-right">当月収益</th>';
+            html += '<th class="text-right">構成比</th>';
+            html += '<th class="text-right">前月比</th>';
+            html += '</tr></thead>';
+            html += '<tbody title="クリックして詳細グラフを表示">';
+
+            const departments = [
+                { row: 84, name: '内科' },
+                { row: 85, name: '皮膚科' },
+                { row: 86, name: '発熱外来' },
+                { row: 87, name: '内視鏡' },
+                { row: 88, name: 'オンライン' },
+                { row: 89, name: '健診・人間ドック' },
+                { row: 91, name: '往診' },
+                { row: 92, name: '予防接種ワクチン' }
+            ];
+
+            departments.forEach(({ row, name }) => {
+                const current = csvData && csvData[row - 1] ? csvData[row - 1][selectedMonth + 2] : null;
+                const previous = csvData && csvData[row - 1] ? csvData[row - 1][selectedMonth + 1] : null;
+                
+                const parseRevenue = (val) => {
+                    if (typeof val === 'string') {
+                        return parseFloat(val.replace(/[¥￥,\s]/g, '')) || 0;
+                    }
+                    return val || 0;
+                };
+                
+                const numCurrent = parseRevenue(current);
+                const numPrevious = parseRevenue(previous);
+                const change = getChangeRate(numCurrent, numPrevious);
+                
+                const total = parseRevenue(getValue('合計', selectedMonth));
+                const ratio = total > 0 ? ((numCurrent / total) * 100).toFixed(1) : 0;
+                
+                html += `<tr class="clickable-row" onclick="showItemDetail('${name}')">`;
+                html += `<td>${name}</td>`;
+                html += `<td class="text-right">¥${numCurrent > 0 ? Math.round(numCurrent).toLocaleString() : '0'}</td>`;
+                html += `<td class="text-right" style="color: #6b7280;">${ratio}%</td>`;
+                html += `<td class="text-right"><span style="color: ${parseFloat(change) > 0 ? '#10b981' : parseFloat(change) < 0 ? '#ef4444' : '#6b7280'}">${change}%</span></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            html += '</div></div>';
+
+            return html;
+        }
+
+        function renderDepartmentSection(department, items) {
+            if (!items || items.length === 0) {
+                return '<div class="p-4 text-center">データがありません</div>';
+            }
+            
+            const volumeItems = items.filter(item => getDataType(item) === 'volume');
+            const revenueItems = items.filter(item => getDataType(item) === 'revenue');
+            
+            const currentMonth = selectedMonth;
+            const previousMonth = currentMonth - 1;
+
+            let html = '';
+
+            // Special CSP highlight for endoscopy
+            if (department === '内視鏡') {
+                const cspRate = getValue('CSP割合（％）', currentMonth);
+                const totalExams = getValue('カメラ合計（人）', currentMonth);
+                const cspCount = getValue('CSP（人）', currentMonth);
+                
+                html += `
+                    <div class="csp-highlight">
+                        <h4>CSP実施率</h4>
+                        <div class="value">${cspRate || '-'}%</div>
+                        <div class="detail">内視鏡検査${totalExams || 0}件中、CSP実施${cspCount || 0}件</div>
+                    </div>
+                `;
+            }
+
+            // Data type selector
+            html += '<div class="data-type-buttons">';
+            html += `<button class="data-type-button ${dataType === 'both' ? 'active' : ''}" onclick="setDataType('both')">すべて</button>`;
+            html += `<button class="data-type-button ${dataType === 'volume' ? 'active' : ''}" onclick="setDataType('volume')">人数・件数</button>`;
+            html += `<button class="data-type-button ${dataType === 'revenue' ? 'active' : ''}" onclick="setDataType('revenue')">金額</button>`;
+            html += '</div>';
+
+            // Volume metrics
+            if (dataType !== 'revenue' && volumeItems.length > 0) {
+                html += '<h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">人数・件数指標</h3>';
+                html += '<div class="metric-cards">';
+                
+                if (department === '内視鏡') {
+                    ['GF（人）', 'CF（人）', 'カメラ合計（人）', 'CSP（人）', 'CSP割合（％）', 'カメラ合計（件/日）'].forEach(metric => {
+                        if (volumeItems.includes(metric)) {
+                            html += createMetricCard(
+                                metric,
+                                getValue(metric, currentMonth),
+                                getValue(metric, previousMonth),
+                                metric,
+                                metric.includes('CSP') ? 'orange' : 'blue'
+                            );
+                        }
+                    });
+                } else {
+                    volumeItems.slice(0, 6).forEach(metric => {
+                        html += createMetricCard(
+                            metric,
+                            getValue(metric, currentMonth),
+                            getValue(metric, previousMonth),
+                            metric,
+                            'blue'
+                        );
+                    });
+                }
+                
+                html += '</div>';
+            }
+
+            // Revenue metrics
+            if (dataType !== 'volume' && revenueItems.length > 0) {
+                html += '<h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem; margin-top: 2rem;">収益指標</h3>';
+                html += '<div class="metric-cards">';
+                revenueItems.slice(0, 6).forEach(metric => {
+                    html += createMetricCard(
+                        metric,
+                        getValue(metric, currentMonth),
+                        getValue(metric, previousMonth),
+                        metric,
+                        'green'
+                    );
+                });
+                html += '</div>';
+            }
+
+            // Trend charts - separate for volume and revenue
+            if (dataType !== 'revenue' && volumeItems.length > 0) {
+                html += '<div class="chart-container" style="margin-top: 2rem;">';
+                html += `<h3 class="chart-title">${department}人数推移（12ヶ月）</h3>`;
+                html += '<div class="chart-wrapper"><canvas id="departmentTrendChart"></canvas></div>';
+                html += '</div>';
+            }
+            
+            if (dataType !== 'volume' && revenueItems.length > 0) {
+                html += '<div class="chart-container" style="margin-top: 2rem;">';
+                html += `<h3 class="chart-title">${department}収益推移（12ヶ月）</h3>`;
+                html += '<div class="chart-wrapper"><canvas id="departmentRevenueTrendChart"></canvas></div>';
+                html += '</div>';
+            }
+
+            // CSP trend for endoscopy
+            if (department === '内視鏡') {
+                html += '<div class="chart-container">';
+                html += '<h3 class="chart-title">CSP実施率推移（12ヶ月）</h3>';
+                html += '<div class="chart-wrapper"><canvas id="cspTrendChart"></canvas></div>';
+                html += '</div>';
+            }
+
+            // Determine which items to display in the detail table based on data type filter
+            let displayItems = items; // Default to all items
+            if (dataType === 'volume') {
+                displayItems = volumeItems;
+            } else if (dataType === 'revenue') {
+                displayItems = revenueItems;
+            }
+
+            // Detail table
+            html += '<div class="data-table" style="margin-top: 2rem;">';
+            html += '<div style="padding: 1.5rem;"><h3 class="chart-title">全項目詳細</h3></div>';
+            html += '<div class="table-wrapper">';
+            html += '<table>';
+            html += '<thead><tr>';
+            html += '<th>項目名</th>';
+            html += '<th class="text-right">単位</th>';
+            html += `<th class="text-right">${getMonthLabel(currentMonth)}</th>`;
+            html += `<th class="text-right">${getMonthLabel(previousMonth)}</th>`;
+            html += '<th class="text-right">前月比</th>';
+            html += '</tr></thead>';
+            html += '<tbody title="クリックして詳細グラフを表示">';
+
+            if (displayItems && displayItems.length > 0) {
+                displayItems.forEach(item => {
+                const current = getValue(item, currentMonth);
+                const previous = getValue(item, previousMonth);
+                const change = getChangeRate(current, previous);
+                const changeNum = parseFloat(change);
+                
+                html += `<tr class="clickable-row" onclick="showItemDetail('${item}')" style="${getDataType(item) === 'revenue' ? 'background: #f0fdf4;' : ''}">`;
+                html += `<td>${item}</td>`;
+                html += `<td class="text-right" style="color: #6b7280;">${getUnit(item)}</td>`;
+                html += `<td class="text-right">${formatValue(current, item)}</td>`;
+                html += `<td class="text-right" style="color: #6b7280;">${formatValue(previous, item)}</td>`;
+                html += `<td class="text-right"><span style="color: ${changeNum > 0 ? '#10b981' : changeNum < 0 ? '#ef4444' : '#6b7280'}">${isNaN(changeNum) ? '-' : `${change}%`}</span></td>`;
+                html += '</tr>';
+                });
+            }
+
+            html += '</tbody></table>';
+            html += '</div></div>';
+
+            return html;
+        }
+
+        // Chart rendering functions
+        function renderPatientTrendChart() {
+            const ctx = document.getElementById('patientTrendChart');
+            if (!ctx) return;
+
+            const data = [];
+            for (let i = 0; i < 12; i++) {
+                if (isValidMonth(i)) {
+                    data.push({
+                        month: getMonthLabel(i),
+                        内科: getValue('内科合計（人）', i) || 0,
+                        発熱: getValue('発熱合計（人）', i) || 0,
+                        皮膚科: getValue('皮膚科合計（人）', i) || 0,
+                        内視鏡: getValue('カメラ合計（人）', i) || 0,
+                        オンライン: getValue('オンライン（人）', i) || 0
+                    });
+                }
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.month),
+                    datasets: [
+                        {
+                            label: '内科',
+                            data: data.map(d => d.内科),
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1
+                        },
+                        {
+                            label: '発熱',
+                            data: data.map(d => d.発熱),
+                            borderColor: '#EF4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.1
+                        },
+                        {
+                            label: '皮膚科',
+                            data: data.map(d => d.皮膚科),
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.1
+                        },
+                        {
+                            label: '内視鏡',
+                            data: data.map(d => d.内視鏡),
+                            borderColor: '#F59E0B',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'オンライン',
+                            data: data.map(d => d.オンライン),
+                            borderColor: '#8B5CF6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                                        plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDepartmentCompositionChart() {
+            const ctx = document.getElementById('departmentCompositionChart');
+            if (!ctx) return;
+
+            const currentMonth = selectedMonth;
+            const data = [
+                { name: '内科', value: getValue('内科合計（人）', currentMonth) || 0 },
+                { name: '発熱外来', value: getValue('発熱合計（人）', currentMonth) || 0 },
+                { name: '皮膚科', value: getValue('皮膚科合計（人）', currentMonth) || 0 },
+                { name: '内視鏡', value: getValue('カメラ合計（人）', currentMonth) || 0 },
+                { name: 'オンライン', value: getValue('オンライン（人）', currentMonth) || 0 }
+            ];
+
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: data.map(d => d.name),
+                    datasets: [{
+                        data: data.map(d => d.value),
+                        backgroundColor: ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                                        plugins: {
+                        legend: {
+                            position: 'right'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ${value}人 (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderRevenueTrendChart() {
+            const ctx = document.getElementById('revenueTrendChart');
+            if (!ctx) return;
+
+            const data = [];
+            for (let i = 0; i < 12; i++) {
+                if (isValidMonth(i)) {
+                    const total = getValue('合計', i);
+                    data.push({
+                        month: getMonthLabel(i),
+                        value: typeof total === 'number' ? total : 0
+                    });
+                }
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.month),
+                    datasets: [{
+                        label: '売上合計',
+                        data: data.map(d => d.value),
+                        borderColor: '#3B82F6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                                        plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return `¥${(value / 1000000).toFixed(1)}M`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderIncomeBreakdownChart() {
+            const ctx = document.getElementById('incomeBreakdownChart');
+            if (!ctx) return;
+
+            const currentMonth = selectedMonth;
+            const items = ['保険診療', '自費診療', '物販', 'その他'];
+            const data = items.map(item => {
+                const value = getValue(item, currentMonth);
+                return typeof value === 'number' ? value : 0;
+            }).filter(v => v > 0);
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: items.filter((_, i) => data[i] > 0),
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                                        plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    return `${label}: ¥${value.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDepartmentRevenueChart() {
+            const ctx = document.getElementById('departmentRevenueChart');
+            if (!ctx) return;
+
+            const departments = [
+                { row: 84, name: '内科' },
+                { row: 85, name: '皮膚科' },
+                { row: 86, name: '発熱外来' },
+                { row: 87, name: '内視鏡' },
+                { row: 88, name: 'オンライン' }
+            ];
+
+            const data = departments.map(({ row, name }) => {
+                const value = csvData && csvData[row - 1] ? csvData[row - 1][selectedMonth + 2] : null;
+                const numValue = typeof value === 'string' ? parseFloat(value.replace(/[¥￥,\s]/g, '')) : value;
+                return {
+                    name: name,
+                    value: numValue || 0
+                };
+            }).filter(item => item.value > 0);
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.name),
+                    datasets: [{
+                        data: data.map(d => d.value),
+                        backgroundColor: ['#3B82F6', '#10B981', '#EF4444', '#F59E0B', '#8B5CF6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                                        plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    return `${label}: ¥${value.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDepartmentTrendChart() {
+            const ctx = document.getElementById('departmentTrendChart');
+            if (!ctx) return;
+
+            let items;
+            switch (selectedTab) {
+                case 'internal':
+                    items = departmentItems.internal;
+                    break;
+                case 'fever':
+                    items = departmentItems.fever;
+                    break;
+                case 'dermatology':
+                    items = departmentItems.dermatology;
+                    break;
+                case 'endoscopy':
+                    items = departmentItems.endoscopy;
+                    break;
+                case 'online':
+                    items = departmentItems.online;
+                    break;
+                case 'visit':
+                    items = departmentItems.visit;
+                    break;
+                default:
+                    return;
+            }
+
+            // Filter to only volume items
+            items = items.filter(item => getDataType(item) === 'volume');
+            
+            if (items.length === 0) return; // Exit if no volume items
+
+            // Select items to display
+            let displayItems;
+            if (selectedTab === 'endoscopy') {
+                displayItems = ['GF（人）', 'CF（人）', 'CSP（人）', 'カメラ合計（人）'].filter(item => items.includes(item));
+            } else {
+                displayItems = items.filter(item => !item.includes('％') && !item.includes('伸び')).slice(0, 3);
+            }
+
+            const data = [];
+            for (let i = 0; i < 12; i++) {
+                if (isValidMonth(i)) {
+                    const monthData = { month: getMonthLabel(i) };
+                    displayItems.forEach(item => {
+                        monthData[item] = getValue(item, i) || 0;
+                    });
+                    data.push(monthData);
+                }
+            }
+
+            const colors = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'];
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.month),
+                    datasets: displayItems.map((item, idx) => ({
+                        label: item,
+                        data: data.map(d => d[item]),
+                        borderColor: colors[idx % colors.length],
+                        backgroundColor: `rgba(${parseInt(colors[idx % colors.length].slice(1,3), 16)}, ${parseInt(colors[idx % colors.length].slice(3,5), 16)}, ${parseInt(colors[idx % colors.length].slice(5,7), 16)}, 0.1)`,
+                        tension: 0.1
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDepartmentRevenueTrendChart() {
+            const ctx = document.getElementById('departmentRevenueTrendChart');
+            if (!ctx) return;
+
+            let items;
+            switch (selectedTab) {
+                case 'internal':
+                    items = departmentItems.internal;
+                    break;
+                case 'fever':
+                    items = departmentItems.fever;
+                    break;
+                case 'dermatology':
+                    items = departmentItems.dermatology;
+                    break;
+                case 'endoscopy':
+                    items = departmentItems.endoscopy;
+                    break;
+                case 'online':
+                    items = departmentItems.online;
+                    break;
+                case 'visit':
+                    items = departmentItems.visit;
+                    break;
+                default:
+                    return;
+            }
+
+            // Filter to only revenue items
+            items = items.filter(item => getDataType(item) === 'revenue');
+
+            // For revenue items, use the department name directly
+            let displayItems = items.slice(0, 3);
+            
+            const data = [];
+            for (let i = 0; i < 12; i++) {
+                if (isValidMonth(i)) {
+                    const monthData = { month: getMonthLabel(i) };
+                    displayItems.forEach(item => {
+                        monthData[item] = getValue(item, i) || 0;
+                    });
+                    data.push(monthData);
+                }
+            }
+
+            const colors = ['#10B981', '#F59E0B', '#8B5CF6'];
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.month),
+                    datasets: displayItems.map((item, idx) => ({
+                        label: item,
+                        data: data.map(d => d[item]),
+                        borderColor: colors[idx % colors.length],
+                        backgroundColor: `rgba(${parseInt(colors[idx % colors.length].slice(1,3), 16)}, ${parseInt(colors[idx % colors.length].slice(3,5), 16)}, ${parseInt(colors[idx % colors.length].slice(5,7), 16)}, 0.1)`,
+                        tension: 0.1
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return `¥${value.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderRevenueSummaryChart() {
+            const ctx = document.getElementById('revenueSummaryChart');
+            if (!ctx) return;
+
+            const currentMonth = selectedMonth;
+            const items = ['保険診療', '自費診療', '物販', 'その他'];
+            const data = items.map(item => {
+                const value = getValue(item, currentMonth);
+                return typeof value === 'number' ? value : 0;
+            }).filter(v => v > 0);
+
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: items.filter((item, i) => data[i] > 0),
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ¥${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDepartmentRevenueSummaryChart() {
+            const ctx = document.getElementById('departmentRevenueSummaryChart');
+            if (!ctx) return;
+
+            const departments = [
+                { row: 84, name: '内科' },
+                { row: 85, name: '皮膚科' },
+                { row: 86, name: '発熱外来' },
+                { row: 87, name: '内視鏡' },
+                { row: 88, name: 'オンライン' }
+            ];
+
+            const data = departments.map(({ row, name }) => {
+                const value = csvData && csvData[row - 1] ? csvData[row - 1][selectedMonth + 2] : null;
+                const numValue = typeof value === 'string' ? parseFloat(value.replace(/[¥￥,\s]/g, '')) : value;
+                return {
+                    name: name,
+                    value: numValue || 0
+                };
+            }).filter(item => item.value > 0);
+
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: data.map(d => d.name),
+                    datasets: [{
+                        data: data.map(d => d.value),
+                        backgroundColor: ['#3B82F6', '#10B981', '#EF4444', '#F59E0B', '#8B5CF6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: ¥${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderCspTrendChart() {
+            const ctx = document.getElementById('cspTrendChart');
+            if (!ctx) return;
+
+            const data = [];
+            for (let i = 0; i < 12; i++) {
+                if (isValidMonth(i)) {
+                    data.push({
+                        month: getMonthLabel(i),
+                        value: getValue('CSP割合（％）', i) || 0
+                    });
+                }
+            }
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.month),
+                    datasets: [{
+                        label: 'CSP実施率',
+                        data: data.map(d => d.value),
+                        backgroundColor: '#F59E0B'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                                        plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDepartmentRevenueTrendChart() {
+            const ctx = document.getElementById('departmentRevenueTrendChart');
+            if (!ctx) return;
+
+            // Get revenue items based on current department
+            let revenueItems = [];
+            switch (selectedTab) {
+                case 'internal':
+                    revenueItems = departmentItems.internal.filter(item => getDataType(item) === 'revenue');
+                    break;
+                case 'fever':
+                    revenueItems = departmentItems.fever.filter(item => getDataType(item) === 'revenue');
+                    break;
+                case 'dermatology':
+                    revenueItems = departmentItems.dermatology.filter(item => getDataType(item) === 'revenue');
+                    break;
+                case 'endoscopy':
+                    revenueItems = departmentItems.endoscopy.filter(item => getDataType(item) === 'revenue');
+                    break;
+                case 'online':
+                    revenueItems = departmentItems.online.filter(item => getDataType(item) === 'revenue');
+                    break;
+                case 'visit':
+                    revenueItems = departmentItems.visit.filter(item => getDataType(item) === 'revenue');
+                    break;
+            }
+
+            if (revenueItems.length === 0) return;
+
+            // Prepare data for the chart
+            const data = [];
+            for (let i = 0; i < 12; i++) {
+                const monthData = { month: getMonthLabel(i) };
+                revenueItems.slice(0, 3).forEach(item => {
+                    monthData[item] = getValue(item, i) || 0;
+                });
+                data.push(monthData);
+            }
+
+            const colors = ['#10B981', '#F59E0B', '#8B5CF6'];
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.month),
+                    datasets: revenueItems.slice(0, 3).map((item, idx) => ({
+                        label: item,
+                        data: data.map(d => d[item]),
+                        borderColor: colors[idx % colors.length],
+                        backgroundColor: `rgba(${parseInt(colors[idx % colors.length].slice(1,3), 16)}, ${parseInt(colors[idx % colors.length].slice(3,5), 16)}, ${parseInt(colors[idx % colors.length].slice(5,7), 16)}, 0.1)`,
+                        tension: 0.1
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return `¥${value.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Event handlers
+        function handleTabClick(tabId) {
+            selectedTab = tabId;
+            updateUI();
+        }
+
+        function handleMonthChange(e) {
+            selectedMonth = parseInt(e.target.value);
+            updateUI();
+        }
+
+        function setDataType(type) {
+            dataType = type;
+            updateUI();
+        }
+
+        function updateUI() {
+            // Update tab buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === selectedTab);
+            });
+
+            // Render content
+            const content = document.getElementById('content');
+            
+            switch (selectedTab) {
+                case 'summary':
+                    content.innerHTML = renderSummarySection();
+                    setTimeout(() => {
+                        renderPatientTrendChart();
+                        renderDepartmentCompositionChart();
+                        renderRevenueSummaryChart();
+                        renderDepartmentRevenueSummaryChart();
+                    }, 100);
+                    break;
+                case 'revenue':
+                    content.innerHTML = renderRevenueSection();
+                    setTimeout(() => {
+                        renderRevenueTrendChart();
+                        renderIncomeBreakdownChart();
+                        renderDepartmentRevenueChart();
+                    }, 100);
+                    break;
+                case 'internal':
+                    content.innerHTML = renderDepartmentSection('内科', departmentItems.internal);
+                    setTimeout(() => {
+                        renderDepartmentTrendChart();
+                        renderDepartmentRevenueTrendChart();
+                    }, 100);
+                    break;
+                case 'fever':
+                    content.innerHTML = renderDepartmentSection('発熱外来', departmentItems.fever);
+                    setTimeout(() => {
+                        renderDepartmentTrendChart();
+                        renderDepartmentRevenueTrendChart();
+                    }, 100);
+                    break;
+                case 'dermatology':
+                    content.innerHTML = renderDepartmentSection('皮膚科', departmentItems.dermatology);
+                    setTimeout(() => {
+                        renderDepartmentTrendChart();
+                        renderDepartmentRevenueTrendChart();
+                    }, 100);
+                    break;
+                case 'endoscopy':
+                    content.innerHTML = renderDepartmentSection('内視鏡', departmentItems.endoscopy);
+                    setTimeout(() => {
+                        renderDepartmentTrendChart();
+                        renderDepartmentRevenueTrendChart();
+                        renderCspTrendChart();
+                    }, 100);
+                    break;
+                case 'online':
+                    content.innerHTML = renderDepartmentSection('オンライン診療', departmentItems.online);
+                    setTimeout(() => {
+                        renderDepartmentTrendChart();
+                        renderDepartmentRevenueTrendChart();
+                    }, 100);
+                    break;
+                case 'visit':
+                    content.innerHTML = renderDepartmentSection('訪問診療', departmentItems.visit);
+                    setTimeout(() => {
+                        renderDepartmentTrendChart();
+                        renderDepartmentRevenueTrendChart();
+                    }, 100);
+                    break;
+            }
+        }
+
+        // Initialize
+        function init() {
+            // Setup tabs
+            const tabList = document.getElementById('tabList');
+            tabs.forEach(tab => {
+                const button = document.createElement('button');
+                button.className = 'tab-button';
+                button.dataset.tab = tab.id;
+                button.textContent = tab.label;
+                button.onclick = () => handleTabClick(tab.id);
+                tabList.appendChild(button);
+            });
+
+            // Setup month selector
+            const monthSelector = document.getElementById('monthSelector');
+            monthSelector.onchange = handleMonthChange;
+
+            // File input handler
+            document.getElementById('csvFile').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    Papa.parse(file, {
+                        header: false,
+                        dynamicTyping: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            csvData = results.data;
+                            
+                            // Populate month selector (limit to available months)
+                            const monthSelector = document.getElementById('monthSelector');
+                            monthSelector.innerHTML = '';
+                            let actualMaxMonth = 11;
+                            
+                            // Find the actual last month with data
+                            for (let i = 11; i >= 0; i--) {
+                                const monthLabel = getMonthLabel(i);
+                                if (monthLabel && monthLabel !== '') {
+                                    actualMaxMonth = i;
+                                    break;
+                                }
+                            }
+                            
+                            for (let i = 0; i <= actualMaxMonth; i++) {
+                                const monthLabel = getMonthLabel(i);
+                                if (monthLabel && monthLabel !== '' && isValidMonth(i)) {
+                                    const option = document.createElement('option');
+                                    option.value = i;
+                                    option.textContent = monthLabel;
+                                    monthSelector.appendChild(option);
+                                }
+                            }
+                            
+                            // Ensure selected month is within valid range and has data
+                            if (selectedMonth > actualMaxMonth || !isValidMonth(selectedMonth)) {
+                                // Find the latest valid month
+                                for (let i = actualMaxMonth; i >= 0; i--) {
+                                    if (isValidMonth(i)) {
+                                        selectedMonth = i;
+                                        break;
+                                    }
+                                }
+                            }
+                            monthSelector.value = selectedMonth;
+                            
+                            updateUI();
+                        }
+                    });
+                }
+            });
+
+            // Show initial loading state
+            document.getElementById('content').innerHTML = '<p style="text-align: center; padding: 2rem;">CSVファイルを選択してください</p>';
+        }
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
